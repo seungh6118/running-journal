@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 const path = require("path");
 const crypto = require("crypto");
 const express = require("express");
@@ -6,6 +6,7 @@ const Database = require("better-sqlite3");
 const fs = require("fs");
 
 const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || "0.0.0.0";
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 const STRAVA_CLIENT_ID = process.env.STRAVA_CLIENT_ID || "";
 const STRAVA_CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET || "";
@@ -393,12 +394,16 @@ app.post("/webhook/strava", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   console.log(`Running Journal server started: ${APP_BASE_URL}`);
+  console.log(`Server bind: ${HOST}:${PORT}`);
   console.log(`Connect Strava at: ${APP_BASE_URL}/auth/strava`);
   console.log(`Manual sync endpoint: POST ${APP_BASE_URL}/api/sync-now`);
   console.log(`SQLite DB path: ${DB_PATH}`);
 });
+
+
+
 
 
 
