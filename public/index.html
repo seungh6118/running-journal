@@ -1,0 +1,210 @@
+﻿<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Running Journal</title>
+    <style>
+      :root {
+        --bg: #f4f7fb;
+        --card: #ffffff;
+        --ink: #132238;
+        --muted: #5a6c84;
+        --line: #d6e0ee;
+        --accent: #ff5a1f;
+        --accent-soft: #eef5ff;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "Noto Sans KR", sans-serif;
+        background: linear-gradient(180deg, #f8fbff, #eef4fa);
+        color: var(--ink);
+      }
+      .wrap {
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 10px 24px rgba(8, 34, 72, 0.08);
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .btn {
+        border: 0;
+        background: var(--accent);
+        color: white;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+      }
+      .btn.secondary {
+        background: var(--accent-soft);
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .hint {
+        color: var(--muted);
+      }
+      .message {
+        margin-top: 10px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        padding: 10px 8px;
+        font-size: 14px;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>러닝 훈련일지</h1>
+        <p class="hint">기본은 앱을 열 때 Strava 최신 기록을 당겨옵니다. 웹훅을 켜면 실시간 자동 반영도 가능합니다.</p>
+
+        <div class="row">
+          <a class="btn" href="/auth/strava">Strava 연결하기</a>
+          <button id="syncBtn" class="btn secondary" type="button">지금 동기화</button>
+          <span id="status" class="pill">상태 확인 중...</span>
+        </div>
+        <div id="syncMsg" class="message"></div>
+
+        <h2>최근 활동</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>일시</th>
+              <th>이름</th>
+              <th>거리(km)</th>
+              <th>시간(분)</th>
+              <th>심박(avg)</th>
+              <th>유형</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      let syncing = false;
+
+      async function loadStatus() {
+        const res = await fetch("/api/strava/status");
+        const data = await res.json();
+        const el = document.getElementById("status");
+        const syncBtn = document.getElementById("syncBtn");
+        el.textContent = data.connectedAthletes > 0 ? `연결됨 (${data.connectedAthletes})` : "미연결";
+        syncBtn.disabled = data.connectedAthletes < 1;
+        return data;
+      }
+
+      function fmt(v, digits = 1) {
+        if (v === null || v === undefined) return "-";
+        return Number(v).toFixed(digits);
+      }
+
+      async function loadActivities() {
+        const res = await fetch("/api/activities?limit=30");
+        const data = await res.json();
+        const tbody = document.getElementById("rows");
+        tbody.innerHTML = "";
+
+        for (const item of data.items) {
+          if (item.is_deleted) continue;
+          const tr = document.createElement("tr");
+          const date = item.start_date_local ? new Date(item.start_date_local).toLocaleString() : "-";
+          tr.innerHTML = `
+            <td>${date}</td>
+            <td>${item.name || "-"}</td>
+            <td>${fmt((item.distance_m || 0) / 1000, 2)}</td>
+            <td>${fmt((item.moving_time_sec || 0) / 60, 1)}</td>
+            <td>${fmt(item.average_heartrate, 0)}</td>
+            <td>${item.type || "-"}</td>
+          `;
+          tbody.appendChild(tr);
+        }
+      }
+
+      async function syncNow(silent = false) {
+        if (syncing) return;
+        syncing = true;
+        const syncBtn = document.getElementById("syncBtn");
+        const msg = document.getElementById("syncMsg");
+        syncBtn.disabled = true;
+
+        try {
+          const res = await fetch("/api/sync-now", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ days: 30 }),
+          });
+          if (!res.ok) {
+            throw new Error(`sync failed (${res.status})`);
+          }
+          const data = await res.json();
+          if (!silent) {
+            msg.textContent = `동기화 완료: 최근 ${data.days}일 기준 ${data.activitiesSynced}개 업데이트`;
+          }
+          await loadActivities();
+          await loadStatus();
+        } catch (err) {
+          msg.textContent = `동기화 실패: ${err.message}`;
+        } finally {
+          syncing = false;
+          const status = await loadStatus();
+          syncBtn.disabled = status.connectedAthletes < 1;
+        }
+      }
+
+      document.getElementById("syncBtn").addEventListener("click", () => syncNow(false));
+
+      (async () => {
+        const status = await loadStatus();
+        await loadActivities();
+
+        const imported = Number(new URLSearchParams(location.search).get("imported") || 0);
+        if (imported > 0) {
+          document.getElementById("syncMsg").textContent = `초기 동기화 완료: ${imported}개 활동 불러옴`;
+        }
+
+        if (status.connectedAthletes > 0) {
+          await syncNow(true);
+        }
+      })();
+    </script>
+  </body>
+</html>
