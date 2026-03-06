@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 .env
 journal.db
 npm-debug.log*

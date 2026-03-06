@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "running-journal",
   "version": "1.0.0",
   "description": "Running journal app with Strava webhook sync",

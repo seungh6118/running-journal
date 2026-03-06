@@ -1,4 +1,4 @@
-﻿# Running Journal (Garmin -> Strava -> This App)
+# Running Journal (Garmin -> Strava -> This App)
 
 이 프로젝트는 Garmin 데이터를 직접 API로 받지 않고,
 Garmin Connect에서 Strava로 자동 동기화된 활동을 받아 훈련일지에 저장합니다.
